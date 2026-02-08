@@ -21,7 +21,14 @@ MonocularMode::MonocularMode() :Node("mono_node_cpp")
     
     //* Find path to home directory
     homeDir = getenv("HOME");
-    // std::cout<<"Home: "<<homeDir<<std::endl;
+    
+    //* Resolve package path at runtime using ament_index
+    try {
+        packagePath = ament_index_cpp::get_package_share_directory("ros2_orb_slam3") + "/";
+    } catch (const std::exception& e) {
+        RCLCPP_WARN(this->get_logger(), "Could not find package share dir, falling back to source path");
+        packagePath = std::string(homeDir) + "/Workspaces/DroneCrawler/src/ros2_orb_slam3/";
+    }
     
     // std::cout<<"VLSAM NODE STARTED\n\n";
     RCLCPP_INFO(this->get_logger(), "\nORB-SLAM3-V1 NODE STARTED");
@@ -52,8 +59,8 @@ MonocularMode::MonocularMode() :Node("mono_node_cpp")
     if (vocFilePath == "file_not_set" || settingsFilePath == "file_not_set")
     {
         pass;
-        vocFilePath = homeDir + "/" + packagePath + "orb_slam3/Vocabulary/ORBvoc.txt.bin";
-        settingsFilePath = homeDir + "/" + packagePath + "orb_slam3/config/Monocular/";
+        vocFilePath = packagePath + "orb_slam3/Vocabulary/ORBvoc.txt.bin";
+        settingsFilePath = packagePath + "orb_slam3/config/Monocular/";
     }
 
     // std::cout<<"vocFilePath: "<<vocFilePath<<std::endl;
@@ -81,6 +88,10 @@ MonocularMode::MonocularMode() :Node("mono_node_cpp")
 
     //* subscribe to receive the timestep
     subTimestepMsg_subscription_= this->create_subscription<std_msgs::msg::Float64>(subTimestepMsgName, 1, std::bind(&MonocularMode::Timestep_callback, this, _1));
+
+    //* Publisher for camera pose (world frame)
+    pose_publisher_ = this->create_publisher<geometry_msgs::msg::PoseStamped>("/orb_slam/pose", 10);
+    odom_publisher_ = this->create_publisher<nav_msgs::msg::Odometry>("/orb_slam/odom", 10);
 
     
     RCLCPP_INFO(this->get_logger(), "Waiting to finish handshake ......");
@@ -183,8 +194,30 @@ void MonocularMode::Img_callback(const sensor_msgs::msg::Image& msg)
     //! Pose with respect to the camera coordinate frame not the world coordinate frame
     Sophus::SE3f Tcw = pAgent->TrackMonocular(cv_ptr->image, timeStep); 
     
-    //* An example of what can be done after the pose w.r.t camera coordinate frame is computed by ORB SLAM3
-    //Sophus::SE3f Twc = Tcw.inverse(); //* Pose with respect to global image coordinate, reserved for future use
+    //* Convert camera-frame pose to world-frame and publish
+    Sophus::SE3f Twc = Tcw.inverse();
+    Eigen::Vector3f translation = Twc.translation();
+    Eigen::Quaternionf quaternion = Twc.unit_quaternion();
+
+    auto pose_msg = geometry_msgs::msg::PoseStamped();
+    pose_msg.header.stamp = this->now();
+    pose_msg.header.frame_id = "world";
+    pose_msg.pose.position.x = static_cast<double>(translation.x());
+    pose_msg.pose.position.y = static_cast<double>(translation.y());
+    pose_msg.pose.position.z = static_cast<double>(translation.z());
+    pose_msg.pose.orientation.x = static_cast<double>(quaternion.x());
+    pose_msg.pose.orientation.y = static_cast<double>(quaternion.y());
+    pose_msg.pose.orientation.z = static_cast<double>(quaternion.z());
+    pose_msg.pose.orientation.w = static_cast<double>(quaternion.w());
+
+    pose_publisher_->publish(pose_msg);
+
+    //* Also publish as Odometry for FUEL exploration planner
+    auto odom_msg = nav_msgs::msg::Odometry();
+    odom_msg.header = pose_msg.header;
+    odom_msg.child_frame_id = "base_link";
+    odom_msg.pose.pose = pose_msg.pose;
+    odom_publisher_->publish(odom_msg);
 
 }
 

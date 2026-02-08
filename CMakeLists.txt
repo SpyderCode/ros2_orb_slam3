@@ -19,6 +19,9 @@ find_package(rclcpp REQUIRED)
 find_package(rclpy REQUIRED)
 find_package(std_msgs REQUIRED)
 find_package(sensor_msgs REQUIRED)
+find_package(geometry_msgs REQUIRED)
+find_package(nav_msgs REQUIRED)
+find_package(ament_index_cpp REQUIRED)
 # find_package(your_custom_msg_interface REQUIRED)
 find_package(cv_bridge REQUIRED)
 find_package(OpenCV 4.2 REQUIRED)
@@ -51,6 +54,9 @@ set(THIS_PACKAGE_INCLUDE_DEPENDS
   rclpy
   std_msgs
   sensor_msgs
+  geometry_msgs
+  nav_msgs
+  ament_index_cpp
   # your_custom_msg_interface
   cv_bridge
   image_transport

@@ -19,6 +19,7 @@
 //* ROS2 includes
 //* std_msgs in ROS 2 https://docs.ros2.org/foxy/api/std_msgs/index-msg.html
 #include "rclcpp/rclcpp.hpp"
+#include <ament_index_cpp/get_package_share_directory.hpp>
 
 // #include "your_custom_msg_interface/msg/custom_msg_field.hpp" // Example of adding in a custom message
 #include <std_msgs/msg/header.hpp>
@@ -26,6 +27,8 @@
 #include <std_msgs/msg/string.hpp>
 #include <std_msgs/msg/bool.hpp>
 #include "sensor_msgs/msg/image.hpp"
+#include <geometry_msgs/msg/pose_stamped.hpp>
+#include <nav_msgs/msg/odometry.hpp>
 using std::placeholders::_1; //* TODO why this is suggested in official tutorial
 
 // Include Eigen
@@ -69,7 +72,7 @@ class MonocularMode : public rclcpp::Node
         
         // Class internal variables
         std::string homeDir = "";
-        std::string packagePath = "ros2_test/src/ros2_orb_slam3/"; //! Change to match path to your workspace
+        std::string packagePath = ""; // Resolved at runtime via ament_index
         std::string OPENCV_WINDOW = ""; // Set during initialization
         std::string nodeName = ""; // Name of this node
         std::string vocFilePath = ""; // Path to ORB vocabulary provided by DBoW2 package
@@ -86,6 +89,8 @@ class MonocularMode : public rclcpp::Node
         rclcpp::Publisher<std_msgs::msg::String>::SharedPtr configAck_publisher_;
         rclcpp::Subscription<sensor_msgs::msg::Image>::SharedPtr subImgMsg_subscription_;
         rclcpp::Subscription<std_msgs::msg::Float64>::SharedPtr subTimestepMsg_subscription_;
+        rclcpp::Publisher<geometry_msgs::msg::PoseStamped>::SharedPtr pose_publisher_;
+        rclcpp::Publisher<nav_msgs::msg::Odometry>::SharedPtr odom_publisher_;
 
         //* ORB_SLAM3 related variables
         ORB_SLAM3::System* pAgent; // pointer to a ORB SLAM3 object

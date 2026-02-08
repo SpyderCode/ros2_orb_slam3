@@ -71,7 +71,11 @@ class MonoDriver(Node):
         print()
 
         # Global path definitions
-        self.home_dir = str(Path.home()) + "/ros2_test/src/ros2_orb_slam3" #! Change this to match path to your workspace
+        try:
+            self.home_dir = ament_index_python.packages.get_package_share_directory('ros2_orb_slam3')
+        except Exception:
+            self.home_dir = str(Path.home()) + "/Workspaces/DroneCrawler/src/ros2_orb_slam3"
+            self.get_logger().warn(f'Could not find package share dir, falling back to: {self.home_dir}')
         self.parent_dir = "TEST_DATASET" #! Change or provide path to the parent directory where data for all image sequences are stored
         self.image_sequence_dir = self.home_dir + "/" + self.parent_dir + "/" + self.image_seq # Full path to the image sequence folder
 
