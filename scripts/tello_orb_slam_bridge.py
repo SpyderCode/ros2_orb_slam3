@@ -3,12 +3,16 @@
 Bridge node to connect Tello camera stream to ORB-SLAM3.
 Takes real-time images from Tello and forwards them to ORB-SLAM3 in the expected format.
 
+Only the latest frame is forwarded — older frames are dropped so ORB-SLAM3
+always processes the most recent image without building up a backlog.
+
 Author: System Integration
 Date: 2025-12-21
 """
 
 import rclpy
 from rclpy.node import Node
+from rclpy.qos import QoSProfile, ReliabilityPolicy, HistoryPolicy
 from sensor_msgs.msg import Image
 from std_msgs.msg import Float64, String
 import time
@@ -17,7 +21,11 @@ import time
 class TelloOrbSlamBridge(Node):
     def __init__(self):
         super().__init__('tello_orb_slam_bridge')
-        
+
+        self.declare_parameter('target_fps', 10.0)  # Max FPS to forward to ORB-SLAM3
+        self.target_fps = self.get_parameter('target_fps').value
+        self.min_interval = 1.0 / self.target_fps
+
         # Publishers to ORB-SLAM3 (expected topics from mono_driver_node.py example)
         self.img_pub = self.create_publisher(Image, '/mono_py_driver/img_msg', 1)
         self.timestamp_pub = self.create_publisher(Float64, '/mono_py_driver/timestep_msg', 1)
@@ -31,18 +39,26 @@ class TelloOrbSlamBridge(Node):
             10
         )
         
-        # Subscriber to Tello camera
+        # Subscriber to Tello camera — keep only 1 latest message, best-effort
+        # so we always get the freshest frame and drop stale ones
+        img_qos = QoSProfile(
+            reliability=ReliabilityPolicy.BEST_EFFORT,
+            history=HistoryPolicy.KEEP_LAST,
+            depth=1
+        )
         self.image_sub = self.create_subscription(
             Image,
             '/tello/camera/image_rect_color',
             self.image_callback,
-            10
+            img_qos
         )
         
         # State variables
         self.config_sent = False
         self.ack_received = False
         self.image_count = 0
+        self.last_forward_time = 0.0
+        self.last_timestamp = 0.0
         
         # Send configuration once on startup
         self.config_timer = self.create_timer(0.1, self.send_config_callback)
@@ -72,20 +88,30 @@ class TelloOrbSlamBridge(Node):
             self.get_logger().info('Starting to forward camera images...')
     
     def image_callback(self, msg):
-        """Forward images from Tello to ORB-SLAM3"""
+        """Forward images from Tello to ORB-SLAM3, rate-limited and drop-stale."""
         if not self.ack_received:
             return
-        
-        # Use message timestamp as the timestep (in seconds)
+
+        # Rate-limit: skip if we forwarded too recently
+        now = time.monotonic()
+        if now - self.last_forward_time < self.min_interval:
+            return
+
+        # Compute timestamp from header
         timestamp = msg.header.stamp.sec + msg.header.stamp.nanosec * 1e-9
+
+        # Guard against non-monotonic timestamps (ORB-SLAM3 rejects them)
+        if timestamp <= self.last_timestamp:
+            timestamp = self.last_timestamp + 0.001  # nudge forward
+        self.last_timestamp = timestamp
         
-        # Publish timestamp first
+        # Publish timestamp first, then image
         timestep_msg = Float64()
         timestep_msg.data = timestamp
         self.timestamp_pub.publish(timestep_msg)
         
-        # Then publish image
         self.img_pub.publish(msg)
+        self.last_forward_time = now
         
         self.image_count += 1
         if self.image_count % 50 == 0:
