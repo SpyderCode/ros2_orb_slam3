@@ -39,10 +39,10 @@ class TelloOrbSlamBridge(Node):
             10
         )
         
-        # Subscriber to Tello camera — keep only 1 latest message, best-effort
-        # so we always get the freshest frame and drop stale ones
+        # Subscriber to Tello camera — keep only 1 latest message
+        # so we always process the most recent frame
         img_qos = QoSProfile(
-            reliability=ReliabilityPolicy.BEST_EFFORT,
+            reliability=ReliabilityPolicy.RELIABLE,
             history=HistoryPolicy.KEEP_LAST,
             depth=1
         )
