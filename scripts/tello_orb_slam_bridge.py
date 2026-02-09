@@ -22,13 +22,21 @@ class TelloOrbSlamBridge(Node):
     def __init__(self):
         super().__init__('tello_orb_slam_bridge')
 
-        self.declare_parameter('target_fps', 10.0)  # Max FPS to forward to ORB-SLAM3
+        # ORB-SLAM3 typically processes at 1-3 FPS on most hardware.
+        # Sending faster just builds a DDS backlog that shows up as lag.
+        self.declare_parameter('target_fps', 2.0)
         self.target_fps = self.get_parameter('target_fps').value
         self.min_interval = 1.0 / self.target_fps
 
-        # Publishers to ORB-SLAM3 (expected topics from mono_driver_node.py example)
-        self.img_pub = self.create_publisher(Image, '/mono_py_driver/img_msg', 1)
-        self.timestamp_pub = self.create_publisher(Float64, '/mono_py_driver/timestep_msg', 1)
+        # Publishers to ORB-SLAM3 — KEEP_LAST/1 so DDS never queues
+        # more than one pending message (drops older undelivered frames).
+        pub_qos = QoSProfile(
+            reliability=ReliabilityPolicy.RELIABLE,
+            history=HistoryPolicy.KEEP_LAST,
+            depth=1
+        )
+        self.img_pub = self.create_publisher(Image, '/mono_py_driver/img_msg', pub_qos)
+        self.timestamp_pub = self.create_publisher(Float64, '/mono_py_driver/timestep_msg', pub_qos)
         self.config_pub = self.create_publisher(String, '/mono_py_driver/experiment_settings', 1)
         
         # Subscriber to acknowledgement from ORB-SLAM3 C++ node
