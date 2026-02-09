@@ -200,7 +200,15 @@ ament_python_install_package(${PROJECT_NAME}) # Install the modules in ros2_orb_
 # Install Python executibles
 install(PROGRAMS
   scripts/mono_driver_node.py
+  scripts/tello_orb_slam_bridge.py
   DESTINATION lib/${PROJECT_NAME}
+)
+
+# Install ORB-SLAM3 config and vocabulary to share directory
+install(DIRECTORY
+  orb_slam3/config
+  orb_slam3/Vocabulary
+  DESTINATION share/${PROJECT_NAME}/orb_slam3
 )
 
 
