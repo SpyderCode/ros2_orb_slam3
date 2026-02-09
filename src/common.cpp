@@ -113,12 +113,16 @@ MonocularMode::~MonocularMode()
 //* Callback which accepts experiment parameters from the Python node
 void MonocularMode::experimentSetting_callback(const std_msgs::msg::String& msg){
     
-    // std::cout<<"experimentSetting_callback"<<std::endl;
+    // Guard: only process the first configuration message to prevent
+    // settingsFilePath being appended to multiple times (bridge sends
+    // config repeatedly on a timer until it receives ACK)
+    if (bSettingsFromPython) {
+        return;
+    }
     bSettingsFromPython = true;
     experimentConfig = msg.data.c_str();
-    // receivedConfig = experimentConfig; // Redundant
     
-    RCLCPP_INFO(this->get_logger(), "Configuration YAML file name: %s", this->receivedConfig.c_str());
+    RCLCPP_INFO(this->get_logger(), "Configuration YAML file name: %s", experimentConfig.c_str());
 
     //* Publish acknowledgement
     auto message = std_msgs::msg::String();
