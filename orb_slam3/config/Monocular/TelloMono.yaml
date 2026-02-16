@@ -36,7 +36,8 @@ Camera.newHeight: 720
 Camera.fps: 20
 
 # Color order of the images (0: BGR, 1: RGB. It is ignored if images are grayscale)
-Camera.RGB: 1
+# tello_dji_node publishes bgr8 encoding — must be 0
+Camera.RGB: 0
 
 #--------------------------------------------------------------------------------------------
 # ORB Parameters

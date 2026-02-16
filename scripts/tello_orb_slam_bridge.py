@@ -122,8 +122,22 @@ class TelloOrbSlamBridge(Node):
         self.last_forward_time = now
         
         self.image_count += 1
+        if self.image_count == 1:
+            # Log diagnostics on first forward
+            img_subs = self.img_pub.get_subscription_count()
+            ts_subs = self.timestamp_pub.get_subscription_count()
+            self.get_logger().info(
+                f'First image forwarded — {msg.width}x{msg.height} {msg.encoding}, '
+                f'img_sub_count={img_subs}, ts_sub_count={ts_subs}')
+            if img_subs == 0:
+                self.get_logger().warn(
+                    'No subscribers on /mono_py_driver/img_msg! '
+                    'Is ORB-SLAM3 (mono_node_cpp) running?')
         if self.image_count % 50 == 0:
-            self.get_logger().info(f'Forwarded {self.image_count} images to ORB-SLAM3')
+            img_subs = self.img_pub.get_subscription_count()
+            self.get_logger().info(
+                f'Forwarded {self.image_count} images to ORB-SLAM3 '
+                f'(img_sub_count={img_subs})')
 
 
 def main(args=None):

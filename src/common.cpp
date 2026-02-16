@@ -175,6 +175,13 @@ void MonocularMode::Img_callback(const sensor_msgs::msg::Image& msg)
     // Initialize
     cv_bridge::CvImagePtr cv_ptr; //* Does not create a copy, memory efficient
     
+    static int img_count = 0;
+    img_count++;
+    if (img_count == 1 || img_count % 50 == 0) {
+        RCLCPP_INFO(this->get_logger(), "Img_callback invoked (frame %d, %dx%d, encoding=%s)",
+                     img_count, msg.width, msg.height, msg.encoding.c_str());
+    }
+    
     //* Convert ROS image to openCV image
     try
     {
