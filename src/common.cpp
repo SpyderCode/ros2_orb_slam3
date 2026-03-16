@@ -205,13 +205,34 @@ void MonocularMode::Img_callback(const sensor_msgs::msg::Image& msg)
     //! Pose with respect to the camera coordinate frame not the world coordinate frame
     Sophus::SE3f Tcw = pAgent->TrackMonocular(cv_ptr->image, timeStep); 
     
+    // Only publish when tracking is active (OK=2 or OK_KLT=5).
+    // Publishing identity/stale poses during tracking failure corrupts
+    // FUEL's occupancy map and confuses the controller.
+    int tracking_state = pAgent->GetTrackingState();
+    static int last_logged_state = -1;
+    static int pose_pub_count = 0;
+    if (tracking_state != last_logged_state) {
+        RCLCPP_INFO(this->get_logger(), "Tracking state changed: %d -> %d (published %d poses so far)",
+                     last_logged_state, tracking_state, pose_pub_count);
+        last_logged_state = tracking_state;
+    }
+    if (tracking_state != 2 && tracking_state != 5) {
+        return;
+    }
+    pose_pub_count++;
+    if (pose_pub_count == 1 || pose_pub_count % 50 == 0) {
+        RCLCPP_INFO(this->get_logger(), "Publishing pose #%d (frame %d)", pose_pub_count, img_count);
+    }
+
     //* Convert camera-frame pose to world-frame and publish
     Sophus::SE3f Twc = Tcw.inverse();
     Eigen::Vector3f translation = Twc.translation();
     Eigen::Quaternionf quaternion = Twc.unit_quaternion();
 
     auto pose_msg = geometry_msgs::msg::PoseStamped();
-    pose_msg.header.stamp = this->now();
+    // Use the source image timestamp so FUEL's ApproximateTimeSynchronizer
+    // can match this pose with the depth image from the same camera frame.
+    pose_msg.header.stamp = msg.header.stamp;
     pose_msg.header.frame_id = "world";
     pose_msg.pose.position.x = static_cast<double>(translation.x());
     pose_msg.pose.position.y = static_cast<double>(translation.y());
